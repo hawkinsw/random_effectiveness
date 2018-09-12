@@ -3,7 +3,6 @@ package main
 import "net"
 import "fmt"
 import "time"
-import "sync"
 import "ipgenerator"
 
 var debug int = 1
@@ -72,31 +71,30 @@ func main() {
 	executive := make(chan runner_controller)
 	results := make(chan scan_stats)
 	generator := ipgenerator.NewRandomIPGenerator()
-	var waiter sync.WaitGroup
-
-	waiter.Add(1)
+	total_runners := 2
 
 	/*
-	 * Create a single runner that will collect statistics.
+	 * Create runners that will collect statistics.
 	 */
-	go runner(generator, LocalhostIP(), results, executive)
+	for i:=0; i<total_runners; i++ {
+		go runner(generator, LocalhostIP(), results, executive)
+	}
 
 	go func() {
 		/*
 		 * Let us run for a period of time.
 		 */
-		time.Sleep(5*time.Minute)
+		time.Sleep(10*time.Second)
 		close(executive)
-
-		/*
-		 * Cool off time.
-		 */
-		time.Sleep(5*time.Second)
-		waiter.Done()
 	}()
 
-	waiter.Wait()
-
-	scan_stats := <-results
-	fmt.Printf("Success: %v, failure: %v\n", scan_stats.Success, scan_stats.Failure)
+	successes := 0
+	failures := 0
+	for i:=0; i<total_runners; i++ {
+		scan_stats := <-results
+		successes += scan_stats.Success
+		failures += scan_stats.Failure
+		fmt.Printf("Success: %v, failure: %v\n", scan_stats.Success, scan_stats.Failure)
+	}
+	fmt.Printf("Total Successes: %v, Total Failures: %v\n", successes, failures)
 }
